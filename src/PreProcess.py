@@ -71,12 +71,18 @@ class PreProcess:
     def getSeed(self):
         path = self.wavfilePath[0]
 
+        # Check speaker number.
+        parse = path.split('\\')
+        spkNum = int(parse[-2][1:])
+        c = tf.one_hot(self.speakerNums.index(spkNum), self.numSpk)
+        c = tf.reshape(c, [1, -1, self.numSpk])
+
         f, _ = librosa.load(path, sr=16000)
         f, _ = librosa.effects.trim(f)
         f = muLaw(f)
         f = tf.one_hot(f, 256)
 
-        return f
+        return f, c
 
     def getNumWav(self):
         return self.numWav

@@ -1,10 +1,12 @@
 import tensorflow as tf
 from keras.layers import Conv1D
 import numpy as np
+import soundfile as sf
 
 from ResidualBlock import ResBlock
 from WaveNet import WaveNet
 from PreProcess import PreProcess
+from MuLaw import muLaw, iMuLaw
 
 
 def test1():
@@ -52,32 +54,78 @@ def test2():
         print()
 
 
+def test3():
+    model = WaveNet(trainable=False)
+    model.load_weights('..\\model\\model')
+
+    filePath = 'C:\\Users\\nyoon\\Documents\\VCTK-Corpus'
+    preProcess = PreProcess(filePath, 16000 * 3)
+
+    testInput, c = preProcess.getSeed()
+    testInput = tf.expand_dims(testInput, axis=0)
+
+    length = testInput.shape[1]
+    result = testInput[:, :1, :]
+
+    for i in range(length - 1):
+        output = model.synthesize(testInput[:, i:i+1, :], c)
+        result = tf.concat([result, output], axis=1)
+
+        if i % 100 == 0:
+            print(i)
+
+    result = tf.argmax(result[0, :, :], axis=-1)
+    result = iMuLaw(np.array(result))
+
+    sf.write('..\\syn\\test3.wav', result, 16000, subtype='PCM_16')
+
+
+def test4():
+    model = WaveNet(trainable=False)
+    model.load_weights('..\\model\\model')
+
+    filePath = 'C:\\Users\\nyoon\\Documents\\VCTK-Corpus'
+    preProcess = PreProcess(filePath, 16000 * 3)
+
+    testInput, c = preProcess.getSeed()
+    testInput = testInput[16000:, :]
+    testInput = tf.expand_dims(testInput, axis=0)
+
+    length = testInput.shape[1]
+    result = testInput[:, :1, :]
+
+    if length <= 16000:
+        return
+
+    for i in range(16000):
+        output = model.synthesize(testInput[:, i:i+1, :], c)
+
+        output = tf.argmax(output[0], axis=-1)
+        output = tf.one_hot(output, 256)
+        output = tf.reshape(output, (1, -1, 256))
+
+        result = tf.concat([result, output], axis=1)
+
+        if i % 100 == 0:
+            print(i)
+
+    for i in range(16000 * 2):
+        output = model.synthesize(result[:, -1:, :], c)
+
+        output = tf.argmax(output[0], axis=-1)
+        output = tf.one_hot(output, 256)
+        output = tf.reshape(output, (1, -1, 256))
+
+        result = tf.concat([result, output], axis=1)
+
+        if i % 100 == 0:
+            print(16000 + i)
+
+    result = tf.argmax(result[0, :, :], axis=-1)
+    result = iMuLaw(np.array(result))
+
+    sf.write('..\\syn\\test3.wav', result, 16000, subtype='PCM_16')
+
+
 if __name__ == '__main__':
-    test2()
-    # model = WaveNet(trainable=True)
-    # inputs = tf.random.normal((1, 1, 256))
-    #
-    # output = model.synthesize(inputs)
-    # print(output.shape)
-    # val = tf.argmax(output, axis=-1)
-    # print(val)
-    #
-    # output = model(inputs)
-    # val = tf.argmax(output, axis=-1)
-    # print(val)
-
-    # block = ResBlock(128, 4, 4)
-    # inputs = np.zeros((1, 1, 128))
-    #
-    # output, skips = block.feed(inputs)
-    # print(output.shape)
-    # print(skips.shape)
-
-    # conv = Conv1D(16, 3, dilation_rate=4, padding='causal')
-    # inputs = tf.random.normal((1, 12, 128))
-    #
-    # output = conv(inputs)
-    # print(output[0, 8, 0])
-    #
-    # output = conv(inputs[:, :9, :])
-    # print(output[0, -1, 0])
+    test4()
